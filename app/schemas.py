@@ -25,7 +25,6 @@ class MuseumBase(BaseModel):
 
 class PaintingBase(BaseModel):
     title: str
-    unique_title: str
     type: Optional[str] = None
     genre: Optional[str] = None
     materials: Optional[List[str]] = None
@@ -52,6 +51,7 @@ class MuseumResponse(MuseumBase):
 
 class PaintingResponse(PaintingBase):
     id: int
+    unique_title: str
     artist: Optional[ArtistResponse] = None
     museum: Optional[MuseumResponse] = None
     created_at: Optional[datetime] = None
@@ -72,3 +72,12 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
     class Config:
         from_attributes = True
+
+class PaintingCreate(PaintingBase):
+    artist_id: int
+    museum_id: int
+
+class PaintingUpdate(PaintingBase):  
+    title: Optional[str] = None
+    artist_id: Optional[int] = None  
+    museum_id: Optional[int] = None 
