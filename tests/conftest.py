@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -19,6 +20,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="function")
 def test_db():
+    """Фикстура для тестовой базы данных"""
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     
     db = TestingSessionLocal()
@@ -26,11 +29,11 @@ def test_db():
         yield db
     finally:
         db.close()
-    
-    Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
 def client(test_db):
+    """Фикстура для тестового клиента FastAPI"""
     def override_get_db():
         try:
             yield test_db
@@ -43,8 +46,9 @@ def client(test_db):
     app.dependency_overrides.clear()
 
 @pytest.fixture
-def sample_data(test_db):
-    from app.models import Artist, Museum, Painting
+def sample_artist(test_db):
+    """Фикстура для тестового художника"""
+    from app.models import Artist
     
     artist = Artist(
         artist_short_name="Тестовый Художник",
@@ -55,23 +59,39 @@ def sample_data(test_db):
         dod_place="Москва"
     )
     test_db.add(artist)
+    test_db.commit()
+    test_db.refresh(artist)
+    return artist
+
+@pytest.fixture
+def sample_museum(test_db):
+    """Фикстура для тестового музея"""
+    from app.models import Museum
+    
+    unique_suffix = str(uuid.uuid4())[:8]
     
     museum = Museum(
         name="Тестовый Музей",
-        name_unique="test_museum",
+        name_unique=f"test_museum_{unique_suffix}",
         city="Москва",
         country="Россия",
         country_code=7
     )
     test_db.add(museum)
-    
     test_db.commit()
-    test_db.refresh(artist)
     test_db.refresh(museum)
+    return museum
+
+@pytest.fixture
+def sample_painting(test_db, sample_artist, sample_museum):
+    """Фикстура для тестовой картины"""
+    from app.models import Painting
     
+    unique_suffix = str(uuid.uuid4())[:8]
+
     painting = Painting(
         title="Тестовая Картина",
-        unique_title="test_painting",
+        unique_title=f"test_painting_1950_{unique_suffix}", 
         type="живопись",
         genre="Пейзаж",
         materials=["холст", "масло"],
@@ -79,15 +99,19 @@ def sample_data(test_db):
         year=1950,
         period="Современное искусство",
         style=["реализм"],
-        artist_id=artist.id,
-        museum_id=museum.id
+        artist_id=sample_artist.id,
+        museum_id=sample_museum.id
     )
     test_db.add(painting)
     test_db.commit()
     test_db.refresh(painting)
-    
+    return painting
+
+@pytest.fixture
+def sample_data(sample_artist, sample_museum, sample_painting):
+    """Общая фикстура со всеми тестовыми данными"""
     return {
-        "artist": artist,
-        "museum": museum, 
-        "painting": painting
+        "artist": sample_artist,
+        "museum": sample_museum, 
+        "painting": sample_painting
     }

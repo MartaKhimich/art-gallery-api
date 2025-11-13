@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import logging
+import transliterate
 
 from app import models, schemas
 from app.dependencies import get_db
@@ -305,7 +306,11 @@ def _generate_painting_unique_title(
     db: Session = None, 
     exclude_id: Optional[int] = None
 ) -> str:
-    base_title = title.lower()
+    try:
+        base_title = transliterate.translit(title, 'ru', reversed=True).lower()
+    except:
+        base_title = title.lower()
+    
     symbols_to_replace = [' ', '-', ',', ':', ';', '—', '–']
     
     for symbol in symbols_to_replace:
@@ -320,14 +325,23 @@ def _generate_painting_unique_title(
     
     unique_title = unique_title_base
     counter = 1
+
+    if db is None:
+        return unique_title
     
-    query = db.query(models.Painting).filter(models.Painting.unique_title == unique_title)
-    if exclude_id:
-        query = query.filter(models.Painting.id != exclude_id)
-    
-    while query.first():
+    while True:
+        query = db.query(models.Painting).filter(models.Painting.unique_title == unique_title)
+        if exclude_id:
+            query = query.filter(models.Painting.id != exclude_id)
+        
+        if not query.first():
+            break
+        
         unique_title = f"{unique_title_base}_{counter}"
         counter += 1
+        
+        if counter > 100:
+            raise Exception("Слишком много попыток генерации unique_title")
     
     return unique_title
-    
+        
